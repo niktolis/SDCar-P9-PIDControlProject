@@ -2,6 +2,9 @@
 #include <iostream>
 #include "json.hpp"
 #include "PID.h"
+#ifdef MATH_DEFS
+#define _USE_MATH_DEFINES
+#endif
 #include <math.h>
 
 // for convenience
@@ -32,10 +35,16 @@ int main()
 {
   uWS::Hub h;
 
-  PID pid;
+  PID pid(0.1, 0.0001, 3.0);
   // TODO: Initialize the pid variable.
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+#ifdef WIN_UWS_LIB
+  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER>* ws, char *data, size_t length, 
+              uWS::OpCode opCode) {
+#else
+  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, 
+              uWS::OpCode opCode) {
+#endif
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -58,27 +67,52 @@ int main()
           * another PID controller to control the speed!
           */
           
+          pid.UpdateError(cte);
+          steer_value = pid.Controller();
+
+          // Saturation
+          if(steer_value > 1.0) {
+            steer_value = 1.0;
+          } 
+          else if (steer_value < -1.0) {
+            steer_value = -1.0;
+          }
+          else {
+            // Do nothing
+          }
           // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+          std::cout << "CTE: " << cte << " Steering Value: " << steer_value 
+            << std::endl;
+
+          
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = 0.3;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
+#ifdef WIN_UWS_LIB
+          ws->send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+#else
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+#endif
         }
       } else {
         // Manual driving
         std::string msg = "42[\"manual\",{}]";
+#ifdef WIN_UWS_LIB
+        ws->send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+#else
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+#endif
       }
     }
   });
 
   // We don't need this since we're not using HTTP but if it's removed the program
   // doesn't compile :-(
-  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data, size_t, size_t) {
+  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data, 
+                  size_t, size_t) {
     const std::string s = "<h1>Hello world!</h1>";
     if (req.getUrl().valueLength == 1)
     {
@@ -91,22 +125,34 @@ int main()
     }
   });
 
+#ifdef WIN_UWS_LIB
+  h.onConnection([&h](uWS::WebSocket<uWS::SERVER>* ws, uWS::HttpRequest req) {
+#else
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+#endif
     std::cout << "Connected!!!" << std::endl;
   });
 
-  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
+#ifdef WIN_UWS_LIB
+  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER>* ws, int code, 
+                    char *message, size_t length) {
+    ws->close();
+#else
+  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, 
+  char *message, size_t length) {
     ws.close();
+#endif
     std::cout << "Disconnected" << std::endl;
   });
 
   int port = 4567;
-  if (h.listen(port))
-  {
+  auto host = "127.0.0.1";
+  if(h.listen(host, port)) {
+
     std::cout << "Listening to port " << port << std::endl;
-  }
-  else
-  {
+
+  } else {
+
     std::cerr << "Failed to listen to port" << std::endl;
     return -1;
   }
