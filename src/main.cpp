@@ -35,14 +35,16 @@ int main()
 {
   uWS::Hub h;
 
-  PID pid(0.1, 0.0001, 3.0);
-  // TODO: Initialize the pid variable.
+  // Initialize the pid variable. For Steering and for Throttle.
+  PID pidS(0.320518, 0.000247719, 15.2, -1.0, 1.0, false);
+  PID pidT(0.35786, 0.00000978, 0.022589, 0.0, 0.35, false);
+  
 
 #ifdef WIN_UWS_LIB
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER>* ws, char *data, size_t length, 
+  h.onMessage([&pidS, &pidT](uWS::WebSocket<uWS::SERVER>* ws, char *data, size_t length,
               uWS::OpCode opCode) {
 #else
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, 
+  h.onMessage([&pidS, &pidT](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
               uWS::OpCode opCode) {
 #endif
     // "42" at the start of the message means there's a websocket message event.
@@ -60,37 +62,28 @@ int main()
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
           double steer_value;
+          double throttle_value;
           /*
           * TODO: Calcuate steering value here, remember the steering value is
           * [-1, 1].
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
+          // Steering
+          pidS.UpdateError(cte);
+          steer_value = pidS.RunController();
+        
+          // Throttle
+          pidT.UpdateError(fabs(cte));
+          throttle_value = 0.35 + pidT.RunController();
           
-          pid.UpdateError(cte);
-          steer_value = pid.Controller();
-
-          // Saturation
-          if(steer_value > 1.0) {
-            steer_value = 1.0;
-          } 
-          else if (steer_value < -1.0) {
-            steer_value = -1.0;
-          }
-          else {
-            // Do nothing
-          }
-          // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value 
-            << std::endl;
-
+          std::cout << "CTE: " << cte << ", Steering: " << steer_value << ", Throttle: " << throttle_value << std::endl;
           
-
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+//          std::cout << msg << std::endl;
 #ifdef WIN_UWS_LIB
           ws->send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 #else
@@ -126,11 +119,13 @@ int main()
   });
 
 #ifdef WIN_UWS_LIB
-  h.onConnection([&h](uWS::WebSocket<uWS::SERVER>* ws, uWS::HttpRequest req) {
+  h.onConnection([&h, &pidS, &pidT](uWS::WebSocket<uWS::SERVER>* ws, uWS::HttpRequest req) {
 #else
-  h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
+  h.onConnection([&h, &pidS, &pidT](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
 #endif
     std::cout << "Connected!!!" << std::endl;
+    pidS.SetServer(ws);
+    pidT.SetServer(ws);
   });
 
 #ifdef WIN_UWS_LIB
