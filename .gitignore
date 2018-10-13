@@ -2,3 +2,10 @@
 build
 tags
 .editorconfig
+.DS_Store
+video/.DS_Store
+video/Final.mov
+ide_profiles
+Header Files
+src/.DS_Store
+Icon\r
