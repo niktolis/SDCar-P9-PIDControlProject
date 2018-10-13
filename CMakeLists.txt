@@ -8,8 +8,10 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
-set(sources src/PID.cpp src/main.cpp)
+include_directories(src)
+set(sources src/PID.cpp src/main.cpp src/json.hpp src/PID.h)
 
+message(${CMAKE_SYSTEM_NAME})
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
 
